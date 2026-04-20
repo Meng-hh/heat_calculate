@@ -1,6 +1,7 @@
 package com.example.heatcalculate.service;
 
 import com.example.heatcalculate.exception.ModelServiceException;
+import com.example.heatcalculate.model.AnalysisSession;
 import com.example.heatcalculate.model.CalorieRange;
 import com.example.heatcalculate.model.CalorieResult;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,9 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
+import java.util.*;;
 
 /**
  * 热量计算服务
@@ -67,10 +66,12 @@ public class CalorieService {
 
     private final ImageValidatorService imageValidatorService;
     private final ChatLanguageModel chatModel;
+    private final SessionStore sessionStore;
 
-    public CalorieService(ImageValidatorService imageValidatorService, ChatLanguageModel chatModel) {
+    public CalorieService(ImageValidatorService imageValidatorService, ChatLanguageModel chatModel, SessionStore sessionStore) {
         this.imageValidatorService = imageValidatorService;
         this.chatModel = chatModel;
+        this.sessionStore = sessionStore;
     }
 
     /**
@@ -109,7 +110,24 @@ public class CalorieService {
             String aiResponse = response.content().text();
             log.info("AI服务返回结果: {}", aiResponse);
 
-            return parseResponse(aiResponse);
+            CalorieResult result = parseResponse(aiResponse);
+
+            // 创建会话，保存对话历史用于后续纠正
+            String sessionId = UUID.randomUUID().toString();
+            AnalysisSession session = new AnalysisSession(sessionId);
+            session.setLastResult(result);
+
+            List<Map<String, Object>> chatHistory = new ArrayList<>();
+            chatHistory.add(Map.of("role", "user", "content", userText, "hasImage", true,
+                "base64Data", base64Data, "mimeType", mimeType));
+            chatHistory.add(Map.of("role", "assistant", "content", aiResponse));
+            session.setChatHistory(chatHistory);
+
+            sessionStore.put(sessionId, session);
+            log.info("粗略模式会话已创建，sessionId: {}", sessionId);
+
+            result.setSessionId(sessionId);
+            return result;
         } catch (Exception e) {
             log.error("模型调用失败: {}", e.getMessage(), e);
             throw new ModelServiceException("模型服务暂时不可用，请稍后重试", e);

@@ -1,5 +1,6 @@
 package com.example.heatcalculate.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
@@ -9,6 +10,10 @@ import java.util.List;
  */
 @Schema(description = "食物热量识别结果")
 public class CalorieResult {
+
+    @Schema(description = "会话标识，用于后续纠正操作")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String sessionId;
 
     @Schema(description = "识别的食物列表")
     private List<FoodItem> foods;
@@ -30,6 +35,14 @@ public class CalorieResult {
 
     public static CalorieResultBuilder builder() {
         return new CalorieResultBuilder();
+    }
+
+    public String getSessionId() {
+        return sessionId;
+    }
+
+    public void setSessionId(String sessionId) {
+        this.sessionId = sessionId;
     }
 
     public List<FoodItem> getFoods() {
@@ -57,9 +70,15 @@ public class CalorieResult {
     }
 
     public static class CalorieResultBuilder {
+        private String sessionId;
         private List<FoodItem> foods;
         private CalorieRange totalCalories;
         private String disclaimer;
+
+        public CalorieResultBuilder sessionId(String sessionId) {
+            this.sessionId = sessionId;
+            return this;
+        }
 
         public CalorieResultBuilder foods(List<FoodItem> foods) {
             this.foods = foods;
@@ -77,7 +96,9 @@ public class CalorieResult {
         }
 
         public CalorieResult build() {
-            return new CalorieResult(foods, totalCalories, disclaimer);
+            CalorieResult result = new CalorieResult(foods, totalCalories, disclaimer);
+            result.setSessionId(sessionId);
+            return result;
         }
     }
 }

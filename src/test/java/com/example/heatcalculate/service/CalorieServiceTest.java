@@ -37,6 +37,7 @@ class CalorieServiceTest {
     private ChatLanguageModel chatModel;
 
     private ImageValidatorService imageValidatorService;
+    private SessionStore sessionStore;
     private CalorieService calorieService;
 
     private static final String VALID_JSON =
@@ -48,7 +49,8 @@ class CalorieServiceTest {
     @BeforeEach
     void setUp() {
         imageValidatorService = new ImageValidatorService();
-        calorieService = new CalorieService(imageValidatorService, chatModel);
+        sessionStore = new SessionStore();
+        calorieService = new CalorieService(imageValidatorService, chatModel, sessionStore);
     }
 
     // ─── parseResponse 单元测试（不依赖 mock）─────────────────────────────────
@@ -196,5 +198,19 @@ class CalorieServiceTest {
         assertNotNull(result);
         assertEquals(1, result.getFoods().size());
         assertEquals("米饭", result.getFoods().get(0).getName());
+    }
+
+    @Test
+    @DisplayName("3.4 粗略模式响应包含 sessionId")
+    void analyzeFood_ResponseContainsSessionId() {
+        MultipartFile image = new MockMultipartFile("image", "food.jpg", "image/jpeg", new byte[1024]);
+        Response<AiMessage> mockResponse = Response.from(AiMessage.from(VALID_JSON), new TokenUsage(10, 20));
+        when(chatModel.generate(anyList())).thenReturn(mockResponse);
+
+        CalorieResult result = calorieService.analyzeFood(image, null);
+
+        assertNotNull(result);
+        assertNotNull(result.getSessionId(), "粗略模式响应应包含 sessionId");
+        assertFalse(result.getSessionId().isEmpty());
     }
 }

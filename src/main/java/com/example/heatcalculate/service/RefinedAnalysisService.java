@@ -142,9 +142,19 @@ public class RefinedAnalysisService {
 
                 return RefinedAnalysisResponse.needInput(sessionId, parsed.question, result);
             } else {
-                // 首轮就足够精确
+                // 首轮就足够精确，创建会话用于后续纠正
                 String sessionId = UUID.randomUUID().toString();
-                log.info("精细分析首轮即完成，无需追问");
+                AnalysisSession session = new AnalysisSession(sessionId);
+                session.setLastResult(result);
+
+                List<Map<String, Object>> chatHistory = new ArrayList<>();
+                chatHistory.add(Map.of("role", "user", "content", userText, "hasImage", true,
+                    "base64Data", base64Data, "mimeType", mimeType));
+                chatHistory.add(Map.of("role", "assistant", "content", aiResponse));
+                session.setChatHistory(chatHistory);
+
+                sessionStore.put(sessionId, session);
+                log.info("精细分析首轮即完成，无需追问，sessionId: {}", sessionId);
                 return RefinedAnalysisResponse.complete(sessionId, result);
             }
         } catch (Exception e) {
@@ -168,8 +178,7 @@ public class RefinedAnalysisService {
 
         // 检查是否达到最大轮数
         if (session.getRoundCount() >= MAX_ROUNDS) {
-            log.info("达到最大追问轮数 {}，返回最佳估算", MAX_ROUNDS);
-            sessionStore.remove(sessionId);
+            log.info("达到最大追问轮数 {}，返回最佳估算，会话保留用于纠正", MAX_ROUNDS);
             return RefinedAnalysisResponse.complete(sessionId, session.getLastResult());
         }
 
@@ -201,15 +210,14 @@ public class RefinedAnalysisService {
                 log.info("继续追问，round: {}, question: {}", session.getRoundCount(), parsed.question);
                 return RefinedAnalysisResponse.needInput(sessionId, parsed.question, result);
             } else {
-                // 完成
-                sessionStore.remove(sessionId);
-                log.info("精细分析完成，共 {} 轮", session.getRoundCount());
+                // 完成，保留会话用于后续纠正
+                session.setLastResult(result);
+                log.info("精细分析完成，共 {} 轮，会话保留用于纠正", session.getRoundCount());
                 return RefinedAnalysisResponse.complete(sessionId, result);
             }
         } catch (Exception e) {
             log.error("精细分析继续调用失败: {}", e.getMessage(), e);
-            // 返回当前最佳结果
-            sessionStore.remove(sessionId);
+            // 返回当前最佳结果，保留会话用于纠正
             if (session.getLastResult() != null) {
                 return RefinedAnalysisResponse.complete(sessionId, session.getLastResult());
             }

@@ -171,3 +171,133 @@
   color: var(--color-text-light);
   margin-bottom: var(--space-xl);
 }
+
+/* Food Item Edit Button */
+.btn-food-edit {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: var(--space-xs);
+  opacity: 0.5;
+  transition: opacity 0.2s;
+  flex-shrink: 0;
+}
+
+.btn-food-edit:hover {
+  opacity: 1;
+}
+
+/* Food Item Editing State */
+.food-item-editing {
+  flex-wrap: wrap;
+  background: var(--color-bg-input);
+  border: 2px solid var(--color-primary);
+}
+
+.food-edit-fields {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.food-edit-input {
+  width: 100%;
+  padding: var(--space-sm);
+  border: 1px solid var(--color-border, #ddd);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  background: white;
+  box-sizing: border-box;
+}
+
+.food-edit-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.food-edit-actions {
+  display: flex;
+  gap: var(--space-xs);
+  flex-shrink: 0;
+}
+
+.btn-edit-confirm,
+.btn-edit-cancel {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-edit-confirm {
+  background: var(--color-primary);
+  color: white;
+}
+
+.btn-edit-cancel {
+  background: var(--color-bg-input);
+  color: var(--color-text-light);
+}
+
+/* Corrections Summary */
+.corrections-summary {
+  margin-top: var(--space-md);
+  text-align: right;
+}
+
+.corrections-badge {
+  display: inline-block;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--color-primary);
+  color: white;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+}
+
+/* Correction Note */
+.note-card {
+  margin-bottom: var(--space-md);
+}
+
+.correction-note {
+  width: 100%;
+  padding: var(--space-md);
+  border: 1px solid var(--color-border, #ddd);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-md);
+  font-family: inherit;
+  resize: none;
+  background: var(--color-bg-input);
+  box-sizing: border-box;
+}
+
+.correction-note:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+/* Recalculate Button */
+.recalculate-btn {
+  width: 100%;
+  margin-bottom: var(--space-md);
+}
+
+.btn-accent {
+  background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
+  color: white;
+  border: none;
+  font-weight: 600;
+}
+
+.btn-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

@@ -111,8 +111,8 @@ class RefinedAnalysisServiceTest {
 
         assertEquals("complete", response.getStatus());
         assertNotNull(response.getResult());
-        // 验证会话被移除
-        assertTrue(sessionStore.get(sessionId).isEmpty());
+        // 验证会话仍然存在（保留用于后续纠正）
+        assertTrue(sessionStore.get(sessionId).isPresent());
     }
 
     @Test

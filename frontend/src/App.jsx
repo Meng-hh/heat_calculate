@@ -3,7 +3,7 @@ import UploadPage from './components/UploadPage';
 import LoadingPage from './components/LoadingPage';
 import ResultPage from './components/ResultPage';
 import QuestionPage from './components/QuestionPage';
-import { analyzeFood, startRefinedAnalysis, continueRefinedAnalysis } from './api';
+import { analyzeFood, startRefinedAnalysis, continueRefinedAnalysis, correctAnalysis } from './api';
 import './styles/global.css';
 import './App.css';
 
@@ -33,6 +33,7 @@ function App() {
         const data = await startRefinedAnalysis(file, note);
         if (data.status === 'complete') {
           setResult(data.result);
+          setSessionId(data.sessionId);
           setCurrentState(STATES.RESULT);
         } else if (data.status === 'need_input') {
           setSessionId(data.sessionId);
@@ -41,9 +42,10 @@ function App() {
           setCurrentState(STATES.QUESTIONING);
         }
       } else {
-        // 粗略模式（不变）
+        // 粗略模式
         const data = await analyzeFood(file, note);
         setResult(data);
+        setSessionId(data.sessionId || null);
         setCurrentState(STATES.RESULT);
       }
     } catch (err) {
@@ -59,7 +61,7 @@ function App() {
       const data = await continueRefinedAnalysis(sessionId, answer);
       if (data.status === 'complete') {
         setResult(data.result);
-        setSessionId(null);
+        setSessionId(data.sessionId || sessionId);
         setCurrentQuestion(null);
         setPartialResult(null);
         setCurrentState(STATES.RESULT);
@@ -77,6 +79,28 @@ function App() {
       setCurrentState(STATES.UPLOAD);
     }
   }, [sessionId]);
+
+  const handleCorrect = useCallback(async (sid, corrections, note) => {
+    setCurrentState(STATES.LOADING);
+    setError(null);
+
+    try {
+      const data = await correctAnalysis(sid, corrections, note);
+      setResult(data);
+      setSessionId(data.sessionId || sid);
+      setCurrentState(STATES.RESULT);
+    } catch (err) {
+      if (err.message && err.message.includes('过期')) {
+        // 会话过期，回到上传页
+        setError('会话已过期，请重新上传图片');
+        setSessionId(null);
+        setCurrentState(STATES.UPLOAD);
+      } else {
+        setError(err.message || '纠正失败，请重试');
+        setCurrentState(STATES.RESULT);
+      }
+    }
+  }, []);
 
   const handleReset = useCallback(() => {
     setCurrentState(STATES.UPLOAD);
@@ -110,7 +134,9 @@ function App() {
         return (
           <ResultPage 
             result={result} 
-            onReset={handleReset} 
+            onReset={handleReset}
+            sessionId={sessionId}
+            onCorrect={handleCorrect}
           />
         );
       default:

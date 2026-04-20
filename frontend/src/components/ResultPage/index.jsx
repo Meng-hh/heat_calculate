@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react';
 import './ResultPage.css';
 
 const FOOD_ICONS = {
@@ -52,9 +53,38 @@ function CalorieRangeBar({ low, mid, high }) {
   );
 }
 
-function FoodItem({ food }) {
+function FoodItem({ food, index, editingIndex, onStartEdit, onConfirmEdit, onCancelEdit, editValues, onEditChange }) {
   const { name, estimatedWeight, calories } = food;
   const icon = getFoodIcon(name);
+  const isEditing = editingIndex === index;
+
+  if (isEditing) {
+    return (
+      <div className="food-item food-item-editing">
+        <div className="food-icon">{icon}</div>
+        <div className="food-edit-fields">
+          <input
+            type="text"
+            className="food-edit-input"
+            value={editValues.name}
+            onChange={(e) => onEditChange('name', e.target.value)}
+            placeholder="食物名称"
+          />
+          <input
+            type="text"
+            className="food-edit-input"
+            value={editValues.weight}
+            onChange={(e) => onEditChange('weight', e.target.value)}
+            placeholder="重量，如200g"
+          />
+        </div>
+        <div className="food-edit-actions">
+          <button className="btn-edit-confirm" onClick={() => onConfirmEdit(index)}>✓</button>
+          <button className="btn-edit-cancel" onClick={onCancelEdit}>✗</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="food-item">
@@ -67,12 +97,69 @@ function FoodItem({ food }) {
         <div className="food-calories-value">{calories.mid}</div>
         <div className="food-calories-unit">千卡</div>
       </div>
+      <button className="btn-food-edit" onClick={() => onStartEdit(index)}>
+        ✏️
+      </button>
     </div>
   );
 }
 
-function ResultPage({ result, onReset }) {
+function ResultPage({ result, onReset, sessionId, onCorrect }) {
   const { foods, totalCalories, disclaimer } = result;
+  
+  // 编辑状态管理
+  const [editingIndex, setEditingIndex] = useState(-1);
+  const [editValues, setEditValues] = useState({ name: '', weight: '' });
+  const [corrections, setCorrections] = useState([]);
+  const [additionalNote, setAdditionalNote] = useState('');
+
+  const handleStartEdit = useCallback((index) => {
+    setEditingIndex(index);
+    setEditValues({
+      name: foods[index].name,
+      weight: foods[index].estimatedWeight,
+    });
+  }, [foods]);
+
+  const handleEditChange = useCallback((field, value) => {
+    setEditValues(prev => ({ ...prev, [field]: value }));
+  }, []);
+
+  const handleConfirmEdit = useCallback((index) => {
+    const original = foods[index];
+    const hasNameChange = editValues.name !== original.name;
+    const hasWeightChange = editValues.weight !== original.estimatedWeight;
+
+    if (hasNameChange || hasWeightChange) {
+      setCorrections(prev => {
+        // 替换已有的同 index 纠正项
+        const filtered = prev.filter(c => c.index !== index);
+        return [...filtered, {
+          index,
+          name: hasNameChange ? editValues.name : '',
+          weight: hasWeightChange ? editValues.weight : '',
+        }];
+      });
+    }
+    setEditingIndex(-1);
+  }, [foods, editValues]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingIndex(-1);
+    setEditValues({ name: '', weight: '' });
+  }, []);
+
+  const handleRecalculate = useCallback(() => {
+    if (onCorrect && sessionId) {
+      onCorrect(sessionId, corrections, additionalNote);
+      // 重置编辑状态
+      setCorrections([]);
+      setAdditionalNote('');
+      setEditingIndex(-1);
+    }
+  }, [onCorrect, sessionId, corrections, additionalNote]);
+
+  const canRecalculate = corrections.length > 0 || additionalNote.trim().length > 0;
 
   if (!foods || foods.length === 0) {
     return (
@@ -113,10 +200,50 @@ function ResultPage({ result, onReset }) {
         <h3 className="food-list-title">识别到的食物</h3>
         <div className="food-list">
           {foods.map((food, index) => (
-            <FoodItem key={index} food={food} />
+            <FoodItem
+              key={index}
+              food={food}
+              index={index}
+              editingIndex={editingIndex}
+              onStartEdit={handleStartEdit}
+              onConfirmEdit={handleConfirmEdit}
+              onCancelEdit={handleCancelEdit}
+              editValues={editValues}
+              onEditChange={handleEditChange}
+            />
           ))}
         </div>
+
+        {corrections.length > 0 && (
+          <div className="corrections-summary">
+            <span className="corrections-badge">{corrections.length} 项已修改</span>
+          </div>
+        )}
       </div>
+
+      {/* 补充备注 */}
+      {sessionId && (
+        <div className="card note-card">
+          <textarea
+            className="correction-note"
+            value={additionalNote}
+            onChange={(e) => setAdditionalNote(e.target.value)}
+            placeholder="补充说明（可选），如：少油少盐、半份量..."
+            rows={2}
+          />
+        </div>
+      )}
+
+      {/* 重新计算按钮 */}
+      {sessionId && (
+        <button
+          className={`btn btn-accent recalculate-btn ${!canRecalculate ? 'btn-disabled' : ''}`}
+          onClick={handleRecalculate}
+          disabled={!canRecalculate}
+        >
+          🔄 重新计算
+        </button>
+      )}
 
       <button className="btn btn-primary" style={{ width: '100%' }} onClick={onReset}>
         <span>📷</span> 再拍一张

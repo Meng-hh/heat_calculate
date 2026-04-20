@@ -135,6 +135,43 @@ export async function continueRefinedAnalysis(sessionId, answer) {
 }
 
 /**
+ * 纠正分析结果
+ * @param {string} sessionId - 会话 ID
+ * @param {Array} corrections - 纠正项列表 [{index, name, weight}]
+ * @param {string} additionalNote - 补充备注
+ * @returns {Promise<Object>} 纠正后的分析结果
+ */
+export async function correctAnalysis(sessionId, corrections = [], additionalNote = '') {
+  try {
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/api/v1/calories/analyze/sessions/${sessionId}/correct`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ corrections, additionalNote }),
+      },
+      REQUEST_TIMEOUT
+    );
+
+    if (response.status === 404) {
+      throw new Error('会话已过期，请重新上传图片');
+    }
+
+    if (!response.ok) {
+      const errorMessage = getErrorMessage(response.status);
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    if (error.message === 'Failed to fetch') {
+      throw new Error('无法连接到服务器，请检查网络');
+    }
+    throw error;
+  }
+}
+
+/**
  * 检查后端服务是否可用
  * @returns {Promise<boolean>}
  */
