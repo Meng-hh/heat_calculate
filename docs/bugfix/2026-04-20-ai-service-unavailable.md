@@ -7,7 +7,9 @@
 {"code":502,"message":"模型服务暂时不可用，请稍后重试"}
 ```
 
-**根本原因：** LangChain4j 的 DashScope 集成在处理 Base64 编码的图片时存在 bug，导致调用通义千问 API 时抛出异常。
+**根本原因：** 两个 bug 叠加导致：
+1. `application.yml` 配置键名错误（`dash-scope` 应为 `dashscope`），导致 `apiKey` 为 null
+2. `FoodCalorieAiService` 通过 `@AiService` 注解将 Base64 图片数据作为普通文本传递，DashScope 收到的是一段字符串而非图片内容，报 `url error`
 
 ## 错误日志
 
@@ -20,101 +22,134 @@ For details, see: https://help.aliyun.com/zh/model-studio/error-code#error-url",
 
 ## 问题分析
 
-1. **LangChain4j DashScope 集成的限制**
-   - LangChain4j 的 `QwenChatModel` 在传递 Base64 图片时使用错误的格式
-   - 它期望图片以 URL 形式提供，但内部处理 Base64 data URL 时有 bug
+1. **配置键名错误**
+   - 原配置使用 `langchain4j.dash-scope`，LangChain4j 期望的是 `langchain4j.dashscope`（无连字符）
+   - 导致 `@Value("${langchain4j.dash-scope.api-key}")` 注入失败，`apiKey` 为 null
 
-2. **配置键名错误**
-   - 原配置使用 `dash-scope`，但 LangChain4j 期望 `dashscope`
+2. **图片传递方式错误**
+   - `FoodCalorieAiService` 使用 `@AiService` + `@UserMessage` 注解方式，把 Base64 字符串拼进提示词文本
+   - LangChain4j 不会将其识别为图片内容，DashScope 收到的是纯文本，无法解析为图片 URL
 
-3. **图片格式问题**
-   - DashScope API 要求图片使用特定格式：`data:image/jpeg;base64,<base64数据>`
-   - LangChain4j 未能正确处理这种格式
+3. **LangChain4j 版本过低**
+   - 0.25.0 尚未提供 `ImageContent` API，无法通过正确方式传递 Base64 图片
 
 ## 解决方案
 
 ### 方案选择
-放弃使用 LangChain4j 的 DashScope 集成，改为直接调用 DashScope REST API。
+
+保留 LangChain4j 架构，升级版本并使用正确的多模态消息 API，而非绕过 LangChain4j 直接调用 REST API。
 
 ### 实施步骤
 
-1. **删除 LangChain4j 相关代码**
-   - 删除 `LangChain4jConfig.java`
-   - 删除 `FoodCalorieAiService.java`
+1. **升级 LangChain4j 到 0.36.2**
+   - `ImageContent` API 在 0.27+ 引入，0.36.2 是 0.x 系列最后一个稳定版
 
-2. **重写 CalorieService**
-   - 使用 `RestTemplate` 直接调用 DashScope API
-   - 构建正确的请求体格式
-   - 正确处理响应解析
+2. **修复配置键名**
+   - `application.yml`：`dash-scope` → `dashscope`
+   - `LangChain4jConfig.java`：同步修正 `@Value` 注解中的键名
 
-3. **修复配置**
-   - 将 `dash-scope` 改为 `dashscope`
+3. **重构 CalorieService，使用 `ImageContent` 正确传图**
+   - 删除 `FoodCalorieAiService`（`@AiService` 注解方式无法传图）
+   - 改用 `UserMessage.from(ImageContent.from(...), TextContent.from(...))` 构建多模态消息
+   - 通过 `ChatLanguageModel.generate(List<ChatMessage>)` 调用模型
+
+4. **将 Bean 类型改为 `ChatLanguageModel` 接口**
+   - `LangChain4jConfig` 返回接口而非具体类，便于单元测试 mock
 
 ### 关键代码变更
 
-**请求体格式：**
-```json
-{
-  "model": "qwen-vl-max",
-  "input": {
-    "messages": [{
-      "role": "user",
-      "content": [
-        {"image": "data:image/jpeg;base64,<base64数据>"},
-        {"text": "提示词"}
-      ]
-    }]
-  },
-  "parameters": {
-    "result_format": "message"
-  }
+**修复前（错误方式）：**
+```java
+// FoodCalorieAiService.java
+@AiService
+public interface FoodCalorieAiService {
+    @UserMessage("分析图片：{{imageBase64}}")  // Base64 被当成普通文本
+    CalorieResult analyze(@V("imageBase64") String imageBase64);
 }
 ```
 
-**API 端点：**
+**修复后（正确方式）：**
+```java
+// CalorieService.java
+UserMessage userMessage = UserMessage.from(
+    ImageContent.from(base64Data, mimeType),   // 正确传递图片内容
+    TextContent.from(SYSTEM_PROMPT + "\n\n" + userText)
+);
+Response<AiMessage> response = chatModel.generate(List.of(userMessage));
 ```
-POST https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation
-Authorization: Bearer <api-key>
-Content-Type: application/json
+
+**配置修复：**
+```yaml
+# 修复前
+langchain4j:
+  dash-scope:
+    api-key: sk-xxx
+
+# 修复后
+langchain4j:
+  dashscope:
+    api-key: sk-xxx
 ```
 
 ## 验证结果
 
-- [x] 服务启动正常
-- [x] 图片上传成功
-- [x] AI 服务调用成功
-- [x] 返回正确的 JSON 格式响应
+### 单元测试（22 个，全部通过）
+
+| 测试用例 | 结果 |
+|---|---|
+| 正常 JSON 解析 | ✅ |
+| AI 返回 markdown 代码块时正确解析 | ✅ |
+| 无效 JSON 时返回降级结果 | ✅ |
+| 正常流程返回正确结果 | ✅ |
+| 带备注时备注出现在 AI 消息中 | ✅ |
+| UserMessage 中包含 ImageContent（核心验证） | ✅ |
+| AI 调用异常时包装为 ModelServiceException | ✅ |
+| 图片格式不支持时抛出 ImageValidationException | ✅ |
+| 空文件时抛出 ImageValidationException | ✅ |
+
+### 集成测试
+
+- [x] 服务启动正常（0.957s）
+- [x] 图片校验通过
+- [x] AI 服务调用成功（不再报 `url error`）
+- [x] 真实食物图片返回正确 JSON，HTTP 200
+
+**真实请求响应示例：**
+```json
+{
+  "foods": [{"name": "紫米", "estimatedWeight": "150-200g", "calories": {"low": 630, "mid": 720, "high": 810}}],
+  "totalCalories": {"low": 630, "mid": 720, "high": 810},
+  "disclaimer": "热量数据为估算值，实际值因食材和烹饪方式而异"
+}
+```
 
 ## 经验教训
 
-1. **第三方库的限制**
-   - LangChain4j 虽然提供了便利的抽象，但在特定场景下可能存在 bug
-   - 当遇到底层 API 错误时，直接调用原生 API 是更可靠的选择
+1. **配置键名要与库的期望严格一致**，连字符和驼峰的细微差异会导致注入失败且不报明显错误
 
-2. **调试技巧**
-   - 查看详细的错误日志和堆栈跟踪
-   - 对比官方 API 文档验证请求格式
-   - 使用 curl/Postman 直接测试 API 以排除库的问题
+2. **多模态 API 需要使用专用的内容类型**，不能把图片数据拼进文本字符串
 
-3. **架构决策**
-   - 对于关键功能，保持对底层 API 的直接访问能力
-   - 抽象层应该易于替换，不应过度依赖特定库的实现细节
+3. **第三方库版本要与所用 API 匹配**，`ImageContent` 等多模态 API 是后续版本才引入的
 
-## 相关文件
+4. **将 Bean 声明为接口类型**（`ChatLanguageModel` 而非 `QwenChatModel`），可以在不启动 Spring 容器的情况下 mock，大幅降低测试成本
 
-- `src/main/java/com/example/heatcalculate/service/CalorieService.java`
-- `src/main/resources/application.yml`
-- ~~`src/main/java/com/example/heatcalculate/config/LangChain4jConfig.java`~~ (已删除)
-- ~~`src/main/java/com/example/heatcalculate/ai/FoodCalorieAiService.java`~~ (已删除)
+## 相关文件变更
+
+| 文件 | 变更类型 |
+|---|---|
+| `src/main/java/com/example/heatcalculate/service/CalorieService.java` | 重构：改用 `ImageContent` 传图 |
+| `src/main/java/com/example/heatcalculate/config/LangChain4jConfig.java` | 修复：键名 + 返回接口类型 |
+| `src/main/resources/application.yml` | 修复：`dash-scope` → `dashscope` |
+| `src/main/java/com/example/heatcalculate/ai/FoodCalorieAiService.java` | 删除：`@AiService` 方式无法传图 |
+| `src/test/java/com/example/heatcalculate/service/CalorieServiceTest.java` | 新增：9 个单元测试用例 |
+| `pom.xml` | 升级：LangChain4j `0.25.0` → `0.36.2` |
 
 ## 提交记录
 
 ```
-commit 8da230d
+commit 8da230d（已废弃方案：直接调用 REST API）
 fix: Resolve AI service unavailable error by replacing LangChain4j with direct DashScope API call
+
+当前方案（保留 LangChain4j 架构）：
+fix: Fix AI service unavailable by using LangChain4j ImageContent API correctly
 ```
-
-## 参考链接
-
-- [DashScope 多模态 API 文档](https://help.aliyun.com/zh/dashscope/developer-reference/api-details)
-- [LangChain4j DashScope 集成](https://docs.langchain4j.dev/integrations/language-models/dashscope/)
