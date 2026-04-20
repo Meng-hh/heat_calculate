@@ -49,6 +49,17 @@ public class GlobalExceptionHandler {
                 .build());
     }
 
+    @ExceptionHandler(SessionExpiredException.class)
+    public ResponseEntity<ErrorResponse> handleSessionExpiredException(SessionExpiredException e) {
+        log.warn("会话过期或不存在: {}", e.getMessage());
+        return ResponseEntity
+            .status(HttpStatus.NOT_FOUND)
+            .body(ErrorResponse.builder()
+                .code(HttpStatus.NOT_FOUND.value())
+                .message(e.getMessage())
+                .build());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception e) {
         log.error("系统异常: {}", e.getMessage(), e);

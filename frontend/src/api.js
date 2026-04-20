@@ -62,6 +62,79 @@ export async function analyzeFood(image, note = '') {
 }
 
 /**
+ * 开始精细分析
+ * @param {File} image - 图片文件
+ * @param {string} note - 可选备注
+ * @returns {Promise<Object>} { sessionId, status, question?, partialResult?, result? }
+ */
+export async function startRefinedAnalysis(image, note = '') {
+  const formData = new FormData();
+  formData.append('image', image);
+  if (note && note.trim()) {
+    formData.append('note', note.trim());
+  }
+
+  try {
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/api/v1/calories/analyze/refined`,
+      {
+        method: 'POST',
+        body: formData,
+      },
+      REQUEST_TIMEOUT
+    );
+
+    if (!response.ok) {
+      const errorMessage = getErrorMessage(response.status);
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    if (error.message === 'Failed to fetch') {
+      throw new Error('无法连接到服务器，请检查网络');
+    }
+    throw error;
+  }
+}
+
+/**
+ * 继续精细分析（提交用户回答）
+ * @param {string} sessionId - 会话 ID
+ * @param {string} answer - 用户回答
+ * @returns {Promise<Object>} { sessionId, status, question?, partialResult?, result? }
+ */
+export async function continueRefinedAnalysis(sessionId, answer) {
+  try {
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/api/v1/calories/analyze/refined/${sessionId}/continue`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answer }),
+      },
+      REQUEST_TIMEOUT
+    );
+
+    if (response.status === 404) {
+      throw new Error('会话已过期，请重新上传图片');
+    }
+
+    if (!response.ok) {
+      const errorMessage = getErrorMessage(response.status);
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    if (error.message === 'Failed to fetch') {
+      throw new Error('无法连接到服务器，请检查网络');
+    }
+    throw error;
+  }
+}
+
+/**
  * 检查后端服务是否可用
  * @returns {Promise<boolean>}
  */

@@ -12,6 +12,7 @@ function UploadPage({ onUpload, initialError = '' }) {
   const [note, setNote] = useState('');
   const [error, setError] = useState(initialError);
   const [isDragging, setIsDragging] = useState(false);
+  const [mode, setMode] = useState('rough'); // 'rough' | 'refined'
   const fileInputRef = useRef(null);
 
   // 当 initialError 变化时更新错误信息
@@ -127,7 +128,7 @@ function UploadPage({ onUpload, initialError = '' }) {
       setError('请先选择图片');
       return;
     }
-    onUpload(selectedFile, note);
+    onUpload(selectedFile, note, mode);
   };
 
   const handleReset = () => {
@@ -148,6 +149,21 @@ function UploadPage({ onUpload, initialError = '' }) {
       </div>
 
       <div className="card">
+        <div className="mode-toggle">
+          <button
+            className={`mode-btn ${mode === 'rough' ? 'active' : ''}`}
+            onClick={() => setMode('rough')}
+          >
+            粗略模式
+          </button>
+          <button
+            className={`mode-btn ${mode === 'refined' ? 'active' : ''}`}
+            onClick={() => setMode('refined')}
+          >
+            精细模式
+          </button>
+        </div>
+
         {!preview ? (
           <div
             className={`upload-area ${isDragging ? 'dragover' : ''}`}
