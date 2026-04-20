@@ -9,7 +9,7 @@ spring:
       max-request-size: 10MB
 
 langchain4j:
-  dash-scope:
+  dashscope:
     api-key: sk-defa4b0f6e994efc867bfac55ee24e28
     model-name: qwen-vl-max
 
