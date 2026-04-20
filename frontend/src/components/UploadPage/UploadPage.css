@@ -1,0 +1,66 @@
+.upload-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.upload-icon {
+  font-size: 64px;
+  margin-bottom: var(--space-md);
+}
+
+.upload-text {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: var(--space-sm);
+}
+
+.upload-hint {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.preview-container {
+  position: relative;
+  text-align: center;
+}
+
+.preview-image {
+  width: 100%;
+  max-height: 300px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-md);
+}
+
+.preview-remove {
+  font-size: var(--font-size-sm);
+  padding: var(--space-sm) var(--space-md);
+}
+
+.note-section {
+  text-align: left;
+}
+
+.note-label {
+  display: block;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: var(--space-sm);
+}
+
+.tips {
+  margin-top: var(--space-xl);
+  text-align: center;
+  padding: var(--space-md);
+  background: rgba(38, 222, 129, 0.1);
+  border-radius: var(--radius-md);
+}
+
+.tips p {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-light);
+  margin: 0;
+}

@@ -1,0 +1,20 @@
+server:
+  port: 8080
+
+spring:
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+langchain4j:
+  dash-scope:
+    api-key: sk-defa4b0f6e994efc867bfac55ee24e28
+    model-name: qwen-vl-max
+
+logging:
+  level:
+    com.example.heatcalculate: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
